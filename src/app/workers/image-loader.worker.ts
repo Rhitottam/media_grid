@@ -1,96 +1,120 @@
-// Image loading Web Worker - loads images and generates multiple resolution levels (mipmaps)
+// Image loading Web Worker - caches compressed blobs and decodes on-demand
+// Memory efficient: stores ~100KB blobs instead of ~8MB ImageBitmaps
 
 interface LoadMessage {
   type: 'load';
   id: string;
   src: string;
-  originalWidth: number;
-  originalHeight: number;
 }
 
-// Resolution levels - we'll generate these from the full image
-const RESOLUTION_LEVELS = [
-  { name: 'tiny', maxDim: 50 },      // For very zoomed out
-  { name: 'thumb', maxDim: 100 },    // Thumbnail
-  { name: 'small', maxDim: 200 },    // Small preview
-  { name: 'medium', maxDim: 400 },   // Medium quality
-  { name: 'large', maxDim: 800 },    // Large
-  { name: 'full', maxDim: Infinity }, // Original resolution
-];
+interface DecodeMessage {
+  type: 'decode';
+  id: string;
+  maxDim: number; // Target max dimension for this decode
+}
 
-// Generate a scaled version of the image
-function generateScaledBitmap(
-  sourceBitmap: ImageBitmap,
-  maxDim: number
-): Promise<ImageBitmap> {
-  const { width, height } = sourceBitmap;
+type WorkerMessage = LoadMessage | DecodeMessage;
+
+// Blob cache - stores compressed image data (~50-200KB each)
+const blobCache = new Map<string, Blob>();
+const loadingSet = new Set<string>();
+
+// Generate a scaled ImageBitmap from a blob
+async function decodeAndScale(blob: Blob, maxDim: number): Promise<ImageBitmap> {
+  // First decode to full ImageBitmap
+  const fullBitmap = await createImageBitmap(blob);
   
-  // Calculate scaled dimensions maintaining aspect ratio
-  let newWidth = width;
-  let newHeight = height;
-  
-  if (maxDim !== Infinity) {
-    const scale = Math.min(maxDim / width, maxDim / height, 1);
-    newWidth = Math.round(width * scale);
-    newHeight = Math.round(height * scale);
+  // If no scaling needed or maxDim is Infinity, return full
+  if (maxDim === Infinity || maxDim <= 0) {
+    return fullBitmap;
   }
   
-  // If dimensions are the same, return original
-  if (newWidth === width && newHeight === height) {
-    return Promise.resolve(sourceBitmap);
+  const { width, height } = fullBitmap;
+  const scale = Math.min(maxDim / width, maxDim / height, 1);
+  
+  // If scale is 1, no need to resize
+  if (scale >= 1) {
+    return fullBitmap;
   }
   
-  // Create OffscreenCanvas and draw scaled image
+  const newWidth = Math.round(width * scale);
+  const newHeight = Math.round(height * scale);
+  
+  // Create scaled version using OffscreenCanvas
   const canvas = new OffscreenCanvas(newWidth, newHeight);
   const ctx = canvas.getContext('2d');
   
   if (!ctx) {
-    return Promise.reject(new Error('Failed to get 2d context'));
+    return fullBitmap; // Fallback to full if context fails
   }
   
-  // Use high-quality image smoothing for downscaling
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(sourceBitmap, 0, 0, newWidth, newHeight);
+  ctx.drawImage(fullBitmap, 0, 0, newWidth, newHeight);
   
-  return canvas.transferToImageBitmap() as unknown as Promise<ImageBitmap>;
+  // Close the full bitmap to free memory in the worker
+  fullBitmap.close();
+  
+  return canvas.transferToImageBitmap();
 }
 
-self.onmessage = async (e: MessageEvent<LoadMessage>) => {
-  const { type, id, src } = e.data;
+// Handle incoming messages
+self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+  const { type, id } = e.data;
 
   if (type === 'load') {
+    const { src } = e.data as LoadMessage;
+    
+    // Skip if already cached or loading
+    if (blobCache.has(id) || loadingSet.has(id)) {
+      // If already cached, notify main thread it's ready
+      if (blobCache.has(id)) {
+        (self as unknown as Worker).postMessage({ type: 'cached', id });
+      }
+      return;
+    }
+    
+    loadingSet.add(id);
+    
     try {
-      // Fetch and decode the full-resolution image
+      // Fetch and store the compressed blob (small memory footprint)
       const response = await fetch(src);
       const blob = await response.blob();
-      const fullBitmap = await createImageBitmap(blob);
       
-      // Generate all resolution levels
-      const levels: { [key: string]: ImageBitmap } = {};
+      // Store in cache
+      blobCache.set(id, blob);
+      loadingSet.delete(id);
       
-      for (const level of RESOLUTION_LEVELS) {
-        if (level.name === 'full') {
-          levels[level.name] = fullBitmap;
-        } else {
-          // Generate scaled version
-          const scaledBitmap = await generateScaledBitmap(fullBitmap, level.maxDim);
-          levels[level.name] = scaledBitmap;
-        }
-      }
+      // Notify main thread that blob is cached and ready for decode
+      (self as unknown as Worker).postMessage({ type: 'cached', id });
+    } catch (error) {
+      loadingSet.delete(id);
+      (self as unknown as Worker).postMessage({ type: 'error', id, error: String(error) });
+    }
+  } 
+  else if (type === 'decode') {
+    const { maxDim } = e.data as DecodeMessage;
+    
+    const blob = blobCache.get(id);
+    if (!blob) {
+      (self as unknown as Worker).postMessage({ type: 'error', id, error: 'Blob not cached' });
+      return;
+    }
+    
+    try {
+      // Decode blob to ImageBitmap at requested size
+      const bitmap = await decodeAndScale(blob, maxDim);
       
-      // Transfer all bitmaps back to main thread
-      const transferables = Object.values(levels);
-      
+      // Transfer bitmap to main thread
       (self as unknown as Worker).postMessage(
         { 
-          type: 'loaded', 
+          type: 'decoded', 
           id, 
-          levels,
-          originalWidth: fullBitmap.width,
-          originalHeight: fullBitmap.height,
+          bitmap,
+          width: bitmap.width,
+          height: bitmap.height,
         }, 
-        transferables
+        [bitmap]
       );
     } catch (error) {
       (self as unknown as Worker).postMessage({ type: 'error', id, error: String(error) });
@@ -98,4 +122,5 @@ self.onmessage = async (e: MessageEvent<LoadMessage>) => {
   }
 };
 
-export {};
+export { };
+
