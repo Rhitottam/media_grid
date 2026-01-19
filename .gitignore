@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+src/wasm/node_modules/
+
+# Build outputs
+dist/
+src/wasm/build/*.wasm
+src/wasm/build/*.wat
+src/wasm/build/*.js
+src/wasm/build/*.d.ts
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Cache
+.cache/
+.parcel-cache/
+.vite/
+
+# Test coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo

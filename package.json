@@ -1,0 +1,60 @@
+{
+  "name": "cloudgrid",
+  "version": "1.0.0",
+  "description": "High-performance infinite canvas with WebAssembly",
+  "type": "module",
+  "author": "CloudGrid Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/cloud_grid.git"
+  },
+  "keywords": [
+    "canvas",
+    "infinite-canvas",
+    "webassembly",
+    "wasm",
+    "react",
+    "konva",
+    "design-tool"
+  ],
+  "scripts": {
+    "dev": "npm run build:wasm && vite",
+    "build": "npm run build:wasm && tsc && vite build",
+    "build:wasm": "cd src/wasm && npm run asbuild",
+    "build:wasm:debug": "cd src/wasm && npm run asbuild:debug",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules/.vite",
+    "clean:all": "rm -rf dist node_modules src/wasm/node_modules src/wasm/build"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "@radix-ui/react-checkbox": "^1.3.3",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tailwindcss/postcss": "^4.1.18",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "konva": "^10.2.0",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-konva": "^19.2.1",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
+    "tw-animate-css": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

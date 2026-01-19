@@ -1,0 +1,30 @@
+export interface WASMExports {
+  memory: WebAssembly.Memory;
+  createCanvas(width: number, height: number, gridSize: number): void;
+  addObject(x: number, y: number, width: number, height: number, assetId: number, objectType: number): number;
+  moveObject(objectId: number, x: number, y: number): void;
+  deleteObject(objectId: number): void;
+  pan(dx: number, dy: number): void;
+  zoom(centerX: number, centerY: number, delta: number): void;
+  updateViewport(): number;
+  getVisibleCount(): number;
+  getVisibleObjectId(index: number): number;
+  getVisibleObjectAssetId(index: number): number;
+  getVisibleObjectType(index: number): number;
+  getTransformX(index: number): number;
+  getTransformY(index: number): number;
+  getTransformWidth(index: number): number;
+  getTransformHeight(index: number): number;
+  getTransformRotation(index: number): number;
+  undo(): boolean;
+  redo(): boolean;
+  setGridSnap(enabled: boolean): void;
+  setGridSize(size: number): void;
+  getCameraX(): number;
+  getCameraY(): number;
+  getCameraZoom(): number;
+  getGridSize(): number;
+  getCanvasWidth(): number;
+  getCanvasHeight(): number;
+  updateCanvasSize(width: number, height: number): void;
+}
