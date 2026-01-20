@@ -1,0 +1,36 @@
+{
+  "name": "@convadraw/wasm",
+  "version": "0.1.0",
+  "description": "WebAssembly module for CloudGrid high-performance canvas operations",
+  "type": "module",
+  "main": "./build/optimized.js",
+  "module": "./build/optimized.js",
+  "types": "./build/optimized.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./build/optimized.d.ts",
+        "default": "./build/optimized.js"
+      }
+    },
+    "./optimized.wasm": "./build/optimized.wasm",
+    "./debug": {
+      "import": {
+        "types": "./build/debug.d.ts",
+        "default": "./build/debug.js"
+      }
+    }
+  },
+  "files": ["build", "README.md"],
+  "scripts": {
+    "build": "npm run build:release",
+    "build:debug": "asc assembly/index.ts --target debug --outFile build/debug.wasm --exportRuntime --textFile build/debug.wat --bindings esm",
+    "build:release": "asc assembly/index.ts --target release --outFile build/optimized.wasm --exportRuntime --optimize --textFile build/optimized.wat --bindings esm",
+    "build:all": "npm run build:debug && npm run build:release",
+    "clean": "rm -rf build",
+    "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.0"
+  }
+}

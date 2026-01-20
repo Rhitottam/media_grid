@@ -1,40 +1,51 @@
 # Dependencies
 node_modules/
-src/wasm/node_modules/
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
 # Build outputs
 dist/
-src/wasm/build/*.wasm
-src/wasm/build/*.wat
-src/wasm/build/*.js
-src/wasm/build/*.d.ts
+build/
+*.tsbuildinfo
 
 # IDE
-.vscode/
 .idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 *.swp
 *.swo
-
-# OS
 .DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
 
 # Environment
 .env
 .env.local
 .env.*.local
 
-# Cache
-.cache/
-.parcel-cache/
-.vite/
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Test coverage
 coverage/
 
-# TypeScript
-*.tsbuildinfo
+# Turbo
+.turbo/
+
+# WASM build artifacts (keep optimized for publishing)
+packages/wasm/build/debug.*
+packages/wasm/build/*.wat
+
+# Local development
+.cache/
+*.local
+
+# OS
+Thumbs.db
