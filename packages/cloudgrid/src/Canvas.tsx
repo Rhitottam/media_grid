@@ -13,7 +13,7 @@ import {
   useCanvasStore,
   useUndoRedoShortcuts,
 } from './hooks/useCanvasStore'
-import { getGroupSnapOffset, snapToGrid } from './lib/grid-utils'
+import { getGroupSnapOffset, snapDimensionsToGrid, snapToGrid } from './lib/grid-utils'
 import type { CanvasImage } from './types/canvas'
 import type { WASMExports } from './utils/wasmLoader'
 
@@ -585,12 +585,124 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
     return () => window.removeEventListener('image-color-ready', handleColorReady as EventListener);
   }, []);
 
+  // Normalize specific items to target height while maintaining aspect ratios
+  const normalizeItemHeights = useCallback((itemIds?: number[], targetHeight?: number): number => {
+    if (!wasm) return 0;
+    
+    const objectCount = wasm.getObjectCount();
+    if (objectCount === 0) return 0;
+    
+    // If no specific items provided, normalize all items
+    const idsToNormalize = itemIds || [];
+    const normalizeAll = !itemIds || itemIds.length === 0;
+    
+    // Calculate average height if not provided
+    let avgHeight = targetHeight || 0;
+    const itemData: Array<{ id: number; width: number; height: number; x: number; y: number }> = [];
+    
+    if (avgHeight === 0) {
+      // Calculate average from all items
+      let totalHeight = 0;
+      let count = 0;
+      
+      for (let i = 0; i < objectCount; i++) {
+        const id = wasm.getObjectIdAtIndex(i);
+        if (wasm.objectExists(id)) {
+          totalHeight += wasm.getObjectHeight(id);
+          count++;
+        }
+      }
+      
+      avgHeight = count > 0 ? totalHeight / count : 350;
+    }
+    
+    // Collect items to normalize
+    if (normalizeAll) {
+      for (let i = 0; i < objectCount; i++) {
+        const id = wasm.getObjectIdAtIndex(i);
+        if (wasm.objectExists(id)) {
+          itemData.push({
+            id,
+            width: wasm.getObjectWidth(id),
+            height: wasm.getObjectHeight(id),
+            x: wasm.getObjectX(id),
+            y: wasm.getObjectY(id),
+          });
+        }
+      }
+    } else {
+      idsToNormalize.forEach(id => {
+        if (wasm.objectExists(id)) {
+          itemData.push({
+            id,
+            width: wasm.getObjectWidth(id),
+            height: wasm.getObjectHeight(id),
+            x: wasm.getObjectX(id),
+            y: wasm.getObjectY(id),
+          });
+        }
+      });
+    }
+    
+    if (itemData.length === 0) return avgHeight;
+    
+    // Calculate new dimensions for each item
+    const resizes: Array<{ id: number; x: number; y: number; width: number; height: number }> = [];
+    
+    itemData.forEach(item => {
+      const aspectRatio = item.width / item.height;
+      const { width: newWidth, height: newHeight } = snapDimensionsToGrid(
+        avgHeight,
+        aspectRatio,
+        gridSize
+      );
+      
+      // Only resize if dimensions actually changed
+      if (newWidth !== item.width || newHeight !== item.height) {
+        resizes.push({ id: item.id, x: item.x, y: item.y, width: newWidth, height: newHeight });
+      }
+    });
+    
+    if (resizes.length === 0) return avgHeight;
+    
+    // Process in batches of 100 to avoid WASM stack overflow
+    const BATCH_SIZE = 100;
+    try {
+      for (let i = 0; i < resizes.length; i += BATCH_SIZE) {
+        const batch = resizes.slice(i, i + BATCH_SIZE);
+        
+        wasm.beginBatchResize();
+        batch.forEach(resize => {
+          wasm.addToBatchResize(resize.id, resize.x, resize.y, resize.width, resize.height);
+        });
+        wasm.endBatchResize();
+      }
+      
+      syncFromWasm(wasm);
+    } catch (error) {
+      console.error('Failed to normalize item heights:', error);
+      throw error;
+    }
+    
+    return avgHeight;
+  }, [wasm, gridSize]);
+
   // Function to sort images by color (exposed via custom event)
   const sortImagesByColor = useCallback(() => {
     if (!wasm) {
       return;
     }
     if (totalImagesRef.current === 0 || colorsLoaded < totalImagesRef.current) {
+      return;
+    }
+    
+    // Normalize all heights before sorting (this is a batch operation)
+    let avgHeight = 0;
+    try {
+      avgHeight = normalizeItemHeights();
+      if (avgHeight === 0) return;
+    } catch (error) {
+      console.error('Failed to normalize heights during color sort:', error);
       return;
     }
     
@@ -629,12 +741,22 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
     // Sort positions by diagonal index (ascending = top-right first)
     positions.sort((a, b) => a.diagIdx - b.diagIdx);
     
-    // Calculate new positions
-    const IMAGE_WIDTH = snapToGrid(400, gridSize);
-    const IMAGE_HEIGHT = snapToGrid(300, gridSize);
+    // Calculate new positions using normalized height
+    const normalizedHeight = snapToGrid(avgHeight, gridSize);
     const GAP = snapToGrid(50, gridSize);
-    const CELL_WIDTH = IMAGE_WIDTH + GAP;
-    const CELL_HEIGHT = IMAGE_HEIGHT + GAP;
+    
+    // Calculate average width from all items (they all have same height now)
+    let totalWidth = 0;
+    for (let i = 0; i < wasm.getObjectCount(); i++) {
+      const id = wasm.getObjectIdAtIndex(i);
+      if (wasm.objectExists(id)) {
+        totalWidth += wasm.getObjectWidth(id);
+      }
+    }
+    const avgWidth = totalWidth / wasm.getObjectCount();
+    
+    const CELL_WIDTH = snapToGrid(avgWidth, gridSize) + GAP;
+    const CELL_HEIGHT = normalizedHeight + GAP;
     const offsetX = snapToGrid(-(COLS * CELL_WIDTH) / 2, gridSize);
     const offsetY = snapToGrid(-(ROWS * CELL_HEIGHT) / 2, gridSize);
     
@@ -653,34 +775,46 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
       }
     });
     
-    // Animate moves using Konva
-    const animationDuration = 1.5; // seconds
+    // Calculate scaled animation duration based on item count
+    // baseDuration = 1000ms, maxDuration = 3000ms, threshold = 1000 items
+    const baseDuration = 1.0; // seconds
+    const maxDuration = 3.0; // seconds
+    const threshold = 1000;
+    const scaledDuration = Math.min(
+      baseDuration + (IMAGE_COUNT / threshold) * 1.0,
+      maxDuration
+    );
     
+    // Update ALL items in WASM first (so non-visible items get new positions)
+    moves.forEach((move) => {
+      wasm.moveObject(move.numericId, move.newX, move.newY);
+    });
+    
+    // Then animate visible Konva nodes
     moves.forEach((move) => {
       const node = imageNodesRef.current.get(move.id);
       if (node) {
-        // Animate the Konva node
-        node.to({
-          x: move.newX,
-          y: move.newY,
-          duration: animationDuration,
-          easing: Konva.Easings.EaseInOut,
-          onFinish: () => {
-            // Update WASM state after animation completes
-            wasm.moveObject(move.numericId, move.newX, move.newY);
-          },
-        });
-      } else {
-        // Node not visible, update WASM directly
-        wasm.moveObject(move.numericId, move.newX, move.newY);
+        // Get current position from Konva node
+        const currentX = node.x();
+        const currentY = node.y();
+        
+        // Only animate if position actually changed
+        if (currentX !== move.newX || currentY !== move.newY) {
+          node.to({
+            x: move.newX,
+            y: move.newY,
+            duration: scaledDuration,
+            easing: Konva.Easings.EaseInOut,
+          });
+        }
       }
     });
     
-    // Sync state after a delay to ensure animations complete
+    // Sync state after animation completes
     setTimeout(() => {
       syncFromWasm(wasm);
-    }, animationDuration * 1000 + 100);
-  }, [wasm, colorsLoaded, images, gridSize]);
+    }, scaledDuration * 1000 + 100);
+  }, [wasm, colorsLoaded, images, gridSize, normalizeItemHeights]);
 
   // Listen for color sort event from StatsPanel
   useEffect(() => {
@@ -699,24 +833,30 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!wasm || !files || files.length === 0) return;
     
-    // Find the bottommost image in the canvas
+    // Calculate average height of existing items (or use default)
     const objectCount = wasm.getObjectCount();
+    let totalHeight = 0;
     let maxBottomY = 0;
     
     for (let i = 0; i < objectCount; i++) {
       const id = wasm.getObjectIdAtIndex(i);
       if (wasm.objectExists(id)) {
-        const y = wasm.getObjectY(id);
         const height = wasm.getObjectHeight(id);
+        const y = wasm.getObjectY(id);
         const bottom = y + height;
+        
+        totalHeight += height;
         if (bottom > maxBottomY) {
           maxBottomY = bottom;
         }
       }
     }
     
+    // Use average height of existing items, or default to 350 if no items
+    const avgHeight = objectCount > 0 ? totalHeight / objectCount : 350;
+    const targetHeight = avgHeight;
+    
     const GAP = snapToGrid(50, gridSize);
-    const MAX_HEIGHT = 400; // Max height for uploaded images
     const startY = snapToGrid(maxBottomY + GAP, gridSize);
     
     // Load all images to get their dimensions
@@ -745,20 +885,15 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
           img.src = src;
         });
         
-        // Calculate scaled dimensions while maintaining aspect ratio
+        // Calculate dimensions using target height and aspect ratio
         const aspectRatio = img.width / img.height;
-        let width = img.width;
-        let height = img.height;
         
-        // Scale down if too large
-        if (height > MAX_HEIGHT) {
-          height = MAX_HEIGHT;
-          width = height * aspectRatio;
-        }
-        
-        // Snap to grid
-        width = snapToGrid(width, gridSize);
-        height = snapToGrid(height, gridSize);
+        // Snap dimensions to grid while maintaining aspect ratio
+        const { width, height } = snapDimensionsToGrid(
+          targetHeight,
+          aspectRatio,
+          gridSize
+        );
         
         const assetId = registerAsset(src);
         imageDataArray.push({ src, assetId, width, height, file });
@@ -802,6 +937,50 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
     
     syncFromWasm(wasm);
     
+    // Only normalize newly added items to match existing average height
+    // (Don't normalize all 2000 items - too expensive)
+    if (newItemIds.length > 0 && objectCount > newItemIds.length) {
+      const newNumericIds = newItemIds
+        .map(id => getNumericId(id))
+        .filter((id): id is number => id !== null);
+      
+      // Calculate average height of EXISTING items (before we added new ones)
+      let existingTotalHeight = 0;
+      let existingCount = 0;
+      for (let i = 0; i < objectCount; i++) {
+        const id = wasm.getObjectIdAtIndex(i);
+        if (wasm.objectExists(id) && !newNumericIds.includes(id)) {
+          existingTotalHeight += wasm.getObjectHeight(id);
+          existingCount++;
+        }
+      }
+      const existingAvgHeight = existingCount > 0 ? existingTotalHeight / existingCount : targetHeight;
+      
+      // Normalize only the new items to match existing height
+      normalizeItemHeights(newNumericIds, existingAvgHeight);
+    }
+    
+    // Recalculate bounds after normalization (dimensions may have changed)
+    minX = Infinity;
+    minY = Infinity;
+    maxX = -Infinity;
+    maxY = -Infinity;
+    
+    newItemIds.forEach(stringId => {
+      const numericId = getNumericId(stringId);
+      if (numericId !== null && wasm.objectExists(numericId)) {
+        const x = wasm.getObjectX(numericId);
+        const y = wasm.getObjectY(numericId);
+        const width = wasm.getObjectWidth(numericId);
+        const height = wasm.getObjectHeight(numericId);
+        
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x + width);
+        maxY = Math.max(maxY, y + height);
+      }
+    });
+    
     // Select newly added items
     if (newItemIds.length > 0) {
       setSelectedIds(newItemIds);
@@ -821,7 +1000,7 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [wasm, gridSize]);
+  }, [wasm, gridSize, normalizeItemHeights]);
 
   // Listen for add media event from StatsPanel
   useEffect(() => {

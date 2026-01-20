@@ -1,6 +1,6 @@
 {
   "name": "@convadraw/cloudgrid",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "High-performance infinite canvas library for React with WebAssembly-powered rendering. Handle 2000+ media items at 60 FPS.",
   "keywords": [
     "react",
