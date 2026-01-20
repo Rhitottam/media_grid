@@ -6,7 +6,7 @@ CloudGrid is a production-ready React library for building infinite canvas appli
 
 [![NPM Version](https://img.shields.io/npm/v/@convadraw/cloudgrid.svg)](https://www.npmjs.com/package/@convadraw/cloudgrid)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/yourusername/cloudgrid/blob/main/LICENSE)
-[![Bundle Size](https://img.shields.io/bundlephobia/minzip/@convadraw/cloudgrid)](https://bundlephobia.com/package/@convadraw/cloudgrid)
+[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://rhitottam.github.io/convadraw/)
 
 ## ✨ Features
 

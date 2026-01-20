@@ -4,11 +4,11 @@
 
 [![NPM Version](https://img.shields.io/npm/v/@convadraw/cloudgrid.svg)](https://www.npmjs.com/package/@convadraw/cloudgrid)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://yourusername.github.io/cloudgrid)
+[![Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://rhitottam.github.io/convadraw/)
 
 > Build infinite canvas applications with 2000+ media items at 60 FPS. Powered by WebAssembly, Web Workers, and React.
 
-![CloudGrid Demo](https://via.placeholder.com/1200x600/0a0a0a/00ff00?text=CloudGrid+Demo)
+![CloudGrid Demo](./docs/demo.jpeg)
 
 ## 🚀 Quick Start
 
@@ -29,7 +29,7 @@ function App() {
 }
 ```
 
-[📖 **Full Documentation**](./packages/cloudgrid/README.md) • [🎮 **Live Demo**](https://yourusername.github.io/cloudgrid) • [📦 **NPM Package**](https://www.npmjs.com/package/@convadraw/cloudgrid)
+[📖 **Full Documentation**](./packages/cloudgrid/README.md) • [🎮 **Live Demo**](https://rhitottam.github.io/convadraw/) • [📦 **NPM Package**](https://www.npmjs.com/package/@convadraw/cloudgrid)
 
 ## ✨ Features
 
