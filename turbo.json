@@ -6,6 +6,11 @@
       "inputs": ["src/**", "package.json", "tsconfig.json"],
       "outputs": ["dist/**"]
     },
+    "@convadraw/wasm#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["assembly/**", "package.json"],
+      "outputs": ["build/**"]
+    },
     "build:wasm": {
       "inputs": ["assembly/**"],
       "outputs": ["build/**"]
