@@ -120,7 +120,7 @@ export function beginBatchMove(): void {
 }
 
 // Add a move to the current batch (call between beginBatchMove and endBatchMove)
-export function addToBatchMove(objectId: u32, newX: f32, newY: f32): void {
+export function addToBatchMove(objectId: u32, oldX: f32, oldY: f32, newX: f32, newY: f32): void {
   if (!canvas) return;
   const c = canvas!;
   if (!c.batchMoveCmd) return;
@@ -128,8 +128,7 @@ export function addToBatchMove(objectId: u32, newX: f32, newY: f32): void {
   const obj = c.objects.get(objectId);
   if (!obj) return;
   
-  const oldX = obj.x;
-  const oldY = obj.y;
+  // Use provided old positions (important for multiple batch operations)
   const snapped = c.grid.snap(newX, newY);
   
   c.batchMoveCmd!.addMove(objectId, oldX, oldY, snapped[0], snapped[1]);
@@ -168,7 +167,7 @@ export function beginBatchResize(): void {
 }
 
 // Add a resize to the current batch
-export function addToBatchResize(objectId: u32, newX: f32, newY: f32, newWidth: f32, newHeight: f32): void {
+export function addToBatchResize(objectId: u32, oldX: f32, oldY: f32, oldWidth: f32, oldHeight: f32, newX: f32, newY: f32, newWidth: f32, newHeight: f32): void {
   if (!canvas) return;
   const c = canvas!;
   if (!c.batchResizeCmd) return;
@@ -176,11 +175,7 @@ export function addToBatchResize(objectId: u32, newX: f32, newY: f32, newWidth: 
   const obj = c.objects.get(objectId);
   if (!obj) return;
   
-  const oldX = obj.x;
-  const oldY = obj.y;
-  const oldWidth = obj.width;
-  const oldHeight = obj.height;
-  
+  // Use provided old values (important for multiple batch operations)
   const snapped = c.grid.snap(newX, newY);
   const snappedWidth = c.grid.snapValue(newWidth);
   const snappedHeight = c.grid.snapValue(newHeight);

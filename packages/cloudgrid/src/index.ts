@@ -53,3 +53,4 @@ export { addMedia, deleteSelected, selectItems, sortByColor, zoomToBounds, zoomT
 
 // Asset metadata management (for advanced usage)
 export { getAssetMetadata, setAssetMetadata, updateAssetColor } from './hooks/useCanvasStore'
+

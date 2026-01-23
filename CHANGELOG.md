@@ -5,6 +5,21 @@ All notable changes to CloudGrid will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-01-23
+
+### 🐛 Bug Fixes
+
+#### WASM Batch Operations Not Applying Changes
+- **Fixed Critical Bug**: Batch move and resize operations were not applying changes to WASM state
+- **Root Cause**: Signature mismatch between TypeScript interface and WASM implementation
+  - TypeScript expected: `addToBatchMove(objectId, oldX, oldY, newX, newY)`
+  - WASM implemented: `addToBatchMove(objectId, newX, newY)` - was reading old values from object
+- **Impact**: Multiple batch operations would always use stale "old" positions/dimensions
+- **Solution**: Updated WASM functions to accept and use provided old values
+  - `addToBatchMove` now accepts all 5 parameters
+  - `addToBatchResize` now accepts all 9 parameters
+- **Result**: Batch operations now correctly apply changes AND maintain proper undo/redo history
+
 ## [1.0.7] - 2026-01-23
 
 ### 🎨 Major UI/UX Improvements
