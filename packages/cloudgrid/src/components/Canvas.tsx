@@ -1019,8 +1019,8 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
           const node = imageNodesRef.current.get(id);
           const nodeInitialPos = dragInitialPositionsRef.current?.get(id);
           if (node && nodeInitialPos) {
-            node.x(nodeInitialPos.x + dx);
-            node.y(nodeInitialPos.y + dy);
+            node.x(snapToGrid(nodeInitialPos.x + dx, gridSize));
+            node.y(snapToGrid(nodeInitialPos.y + dy, gridSize));
           }
         }
       });
@@ -1043,7 +1043,10 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
       if (selectedIds.length <= 1) {
         // Single item drag
         const numericId = getNumericId(draggedId);
-        if (numericId > 0) {
+        const node = imageNodesRef.current.get(draggedId);
+        if (node && numericId > 0) {
+          node.x(snapToGrid(newX, gridSize));
+          node.y(snapToGrid(newY, gridSize));
           moveObject(numericId, snapToGrid(newX, gridSize), snapToGrid(newY, gridSize));
         }
         dragInitialPositionsRef.current = null;
@@ -1084,11 +1087,14 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
       const moves = finalPositions
         .map((pos) => {
           const numericId = getNumericId(pos.id);
-          if (numericId > 0) {
+          const node = imageNodesRef.current.get(pos.id);
+          if (node && numericId > 0) {
+            node.x(snapToGrid(pos.x + snapOffset.dx, gridSize));
+            node.y(snapToGrid(pos.y + snapOffset.dy, gridSize));
             return {
               objectId: numericId,
-              x: pos.x + snapOffset.dx,
-              y: pos.y + snapOffset.dy,
+              x: snapToGrid(pos.x + snapOffset.dx, gridSize),
+              y: snapToGrid(pos.y + snapOffset.dy, gridSize),
             };
           }
           return null;
@@ -1290,17 +1296,44 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
 
         node.scaleX(1);
         node.scaleY(1);
+        const oldWidth = node.width();
+        const oldHeight = node.height();
+        const aspectRatio = oldWidth / oldHeight;
 
-        let newWidth = snapToGrid(node.width() * scaleX, gridSize);
-        let newHeight = snapToGrid(node.height() * scaleY, gridSize);
+        let newWidth = snapToGrid(oldWidth * scaleX, gridSize);
+        let newHeight = snapToGrid(oldHeight * scaleY, gridSize);
 
-        newWidth = Math.max(minSize, Math.min(maxSize, newWidth));
-        newHeight = Math.max(minSize, Math.min(maxSize, newHeight));
+        if (aspectRatio >= 1) {
+          if (newWidth > maxSize) {
+            newWidth = maxSize;
+            newHeight = newWidth / aspectRatio;
+          } else if (newWidth < minSize) {
+            newHeight = minSize;
+            newWidth = newHeight * aspectRatio;
+          }
+        } else {
+          if (newHeight > maxSize) {
+            newHeight = maxSize;
+            newWidth = newHeight * aspectRatio;
+          } else if (newHeight < minSize) {
+            newWidth = minSize;
+            newHeight = newWidth / aspectRatio;
+          }
+        }
 
+        const newX = snapToGrid(node.x(), gridSize);
+        const newY = snapToGrid(node.y(), gridSize);
+
+        node.width(newWidth);
+        node.height(newHeight);
+
+        node.x(newX);
+        node.y(newY);
+      
         resizes.push({
           objectId: numericId,
-          x: snapToGrid(node.x(), gridSize),
-          y: snapToGrid(node.y(), gridSize),
+          x: newX,
+          y: newY,
           width: newWidth,
           height: newHeight,
         });
@@ -1364,10 +1397,8 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
         onTap={handleStageClick}
         onWheel={handleWheel}
         onPointerDown={handleStagePointereDown}
-        // onPointerUp={handleStagePointerUp}
         onPointerMove={handleStagePointerMove}
         onMouseUp={handleStageMouseUp}
-        // onTouchDown={handleStageTouchDown}
         onTouchMove={handleStageTouchMove}
         onTouchEnd={handleStageTouchUp}
         style={{ backgroundColor: 'oklch(0.09 0.01 255)' }}
@@ -1421,6 +1452,7 @@ export const Canvas = memo(function Canvas({ wasm, activeTool, gridSize, onStats
               }
               return newBox;
             }}
+            rotateEnabled={false}
             keepRatio={true}
             enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
             anchorFill="#4ade80"

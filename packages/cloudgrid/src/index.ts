@@ -6,7 +6,7 @@ export type { CloudGridComponents, CloudGridProps, CloudGridRef } from './CloudG
 export { CameraProvider, useCamera } from './CameraContext'
 export type { CameraControls } from './CameraContext'
 export { CloudGridContext, useCloudGrid, useCloudGridOptional } from './CloudGridContext'
-export { WasmProvider, useWasm, useWasmRequired } from './WasmContext'
+export { useWasm, useWasmRequired, WasmProvider } from './WasmContext'
 
 // Toolbar components
 export { CompactToolbar, type ToolbarPosition } from './CompactToolbar'
@@ -19,6 +19,7 @@ export { Editor } from '@convadraw/editor'
 export type { EditorOptions } from '@convadraw/editor'
 
 // Asset types (primary API for users)
+export { generateAssetId, isAsset, isCanvasAsset, isImageAsset, isShapeAsset, isTextAsset, isVideoAsset } from './types/assets'
 export type {
     Asset,
     BaseAsset,
@@ -31,7 +32,6 @@ export type {
     UpdateAssetInput,
     VideoAsset
 } from './types/assets'
-export { generateAssetId, isAsset, isCanvasAsset, isImageAsset, isShapeAsset, isTextAsset, isVideoAsset } from './types/assets'
 
 // Re-export commonly used types
 export type {
@@ -39,7 +39,7 @@ export type {
 } from '@convadraw/state'
 
 // Re-export primitives for convenience
-export { Box, Vec, snapToGrid, uniqueId } from '@convadraw/primitives'
+export { Box, snapToGrid, uniqueId, Vec } from '@convadraw/primitives'
 
 // UI Components
 export { Button, buttonVariants } from './ui/button'
